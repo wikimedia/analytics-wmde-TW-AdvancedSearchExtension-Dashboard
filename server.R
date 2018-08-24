@@ -9,6 +9,7 @@ library(data.table)
 library(dplyr)
 library(tidyr)
 library(stringr)
+library(reshape2)
 library(xts)
 library(dygraphs)
 library(ggvis)
@@ -645,6 +646,31 @@ shinyServer(function(input, output, session) {
                       max = 1,
                       value = 1, {incProgress(amount = 1)})
   
+  # - output$keyOccurWeekCorPlot
+  output$keyOccurWeekCorPlot <- renderPlot({
+    keyOccurWeekCor <- melt(keyOccurWeek)
+    keyOccurWeekCor$Keywords <- gsub("Event_", "", keyOccurWeekCor$Keywords)
+    keyOccurWeekCor$variable <- gsub("Event_", "", keyOccurWeekCor$variable)
+    ggplot(data = keyOccurWeekCor, aes(variable, Keywords, fill = value)) +
+      geom_tile(color = "white") +
+      scale_fill_gradient(low = "white", high = "blue", 
+                           space = "Lab", 
+                           name = "Co-occurence") +
+      theme_minimal() + 
+      theme(axis.text.x = element_text(angle = 90, vjust = 1, 
+                                       size = 10, hjust = 1)) +
+      theme(axis.text.y = element_text(angle = 0, vjust = 1, 
+                                       size = 10, hjust = 1)) +
+      coord_fixed() + 
+      geom_text(aes(variable, Keywords, label = value), color = "black", size = 4) +
+      theme(legend.position = "none") + 
+      xlab('') + ylab('')
+  })  %>% withProgress(message = 'Generating data',
+                       min = 0,
+                       max = 1,
+                       value = 1, {incProgress(amount = 1)})
+  
+  
   ### --- output$keyOccurMonth
   output$keyOccurMonth <- DT::renderDataTable({
     datatable(keyOccurMonth,
@@ -660,6 +686,30 @@ shinyServer(function(input, output, session) {
                       max = 1,
                       value = 1, {incProgress(amount = 1)})
   
+  # - output$keyOccurMonthCorPlot
+  output$keyOccurMonthCorPlot <- renderPlot({
+    keyOccurMonthCor <- melt(keyOccurMonth)
+    keyOccurMonthCor$Keywords <- gsub("Event_", "", keyOccurMonthCor$Keywords)
+    keyOccurMonthCor$variable <- gsub("Event_", "", keyOccurMonthCor$variable)
+    ggplot(data = keyOccurMonthCor, aes(variable, Keywords, fill = value)) +
+      geom_tile(color = "white") +
+      scale_fill_gradient(low = "white", high = "blue", 
+                          space = "Lab", 
+                          name = "Co-occurence") +
+      theme_minimal() + 
+      theme(axis.text.x = element_text(angle = 90, vjust = 1, 
+                                       size = 10, hjust = 1)) +
+      theme(axis.text.y = element_text(angle = 0, vjust = 1, 
+                                       size = 10, hjust = 1)) +
+      coord_fixed() + 
+      geom_text(aes(variable, Keywords, label = value), color = "black", size = 4) +
+      theme(legend.position = "none") + 
+      xlab('') + ylab('')
+  })  %>% withProgress(message = 'Generating data',
+                       min = 0,
+                       max = 1,
+                       value = 1, {incProgress(amount = 1)})
+  
   ### --- output$keyOccur3Months
   output$keyOccur3Months <- DT::renderDataTable({
     datatable(keyOccur3Months,
@@ -674,6 +724,30 @@ shinyServer(function(input, output, session) {
                       min = 0,
                       max = 1,
                       value = 1, {incProgress(amount = 1)})
+  
+  # - output$keyOccur3MonthsCorPlot
+  output$keyOccur3MonthsCorPlot <- renderPlot({
+    keyOccur3MonthsCor <- melt(keyOccur3Months)
+    keyOccur3MonthsCor$Keywords <- gsub("Event_", "", keyOccur3MonthsCor$Keywords)
+    keyOccur3MonthsCor$variable <- gsub("Event_", "", keyOccur3MonthsCor$variable)
+    ggplot(data = keyOccur3MonthsCor, aes(variable, Keywords, fill = value)) +
+      geom_tile(color = "white") +
+      scale_fill_gradient(low = "white", high = "blue", 
+                          space = "Lab", 
+                          name = "Co-occurence") +
+      theme_minimal() + 
+      theme(axis.text.x = element_text(angle = 90, vjust = 1, 
+                                       size = 10, hjust = 1)) +
+      theme(axis.text.y = element_text(angle = 0, vjust = 1, 
+                                       size = 10, hjust = 1)) +
+      coord_fixed() + 
+      geom_text(aes(variable, Keywords, label = value), color = "black", size = 4) +
+      theme(legend.position = "none") + 
+      xlab('') + ylab('')
+  })  %>% withProgress(message = 'Generating data',
+                       min = 0,
+                       max = 1,
+                       value = 1, {incProgress(amount = 1)})
   
   ### ----------------------------------
   ### --- TAB: Special:Search

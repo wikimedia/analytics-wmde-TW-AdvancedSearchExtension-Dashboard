@@ -56,47 +56,106 @@ setwd('/home/goransm/RScripts/TechnicalWishes/AdvancedSearchExtension')
 # - toReport:
 print(paste0("Regular SQL update for: Advanced Search Extension on ... ", as.character(Sys.time())))
   
-# - Intake A: AdvancedSearchRequest_17841562 schema
 
+### --- Enlist all Advanced Search Extension schemata
 sqlLogIn <- 'mysql --defaults-file=/etc/mysql/conf.d/analytics-research-client.cnf -h analytics-slave.eqiad.wmnet -A -e'
-query <- '"use log; select id, DATE_FORMAT(timestamp, \'%Y-%m-%d %H:%i:%S\') as timestamp, userAgent, wiki,
-event_hastemplate, event_intitle, event_not,
-event_or, event_phrase, event_plain, event_filetype
-from AdvancedSearchRequest_17841562"'
-outFile <- '> /srv/home/goransm/RScripts/TechnicalWishes/AdvancedSearchExtension/asExtensionUpdate.tsv'
+query <- '"use log; show tables from log like \'%AdvancedSearchRequest%\';"'
+outFile <- '> /srv/home/goransm/RScripts/TechnicalWishes/AdvancedSearchExtension/asSchemata.tsv'
 sQuery <- paste(sqlLogIn, query, outFile, sep = " ")
 system(sQuery, wait = T)
-updateFile <- read.delim('asExtensionUpdate.tsv', sep = "\t")
-# - as.POSIXct: updateFile$timestamp
-updateFile$timestamp <- as.POSIXct(updateFile$timestamp, tz = "UTC")
-# - UTC to CET
-attr(updateFile$timestamp, "tzone") <- "Europe/Berlin"
-# - filter bots
-updateFile <- dplyr::filter(updateFile,
-                          grepl("is_bot: false", updateFile$userAgent, fixed = T))
-# - remove userAgent
-updateFile <- dplyr::select(updateFile, -userAgent)
-# - save
-write.csv(updateFile, 'asExtensionUpdate_A.csv')
-# - delete the unredacted .tsv file
-file.remove('asExtensionUpdate.tsv')
+asSchemata <- read.delim('asSchemata.tsv', sep = "\t")
+colnames(asSchemata) <- 'table'
 
-# - fix asExtensionUpdate_A.csv
-update <- read.csv('asExtensionUpdate_A.csv',
-                   header = T, stringsAsFactors = F,
-                   row.names = 1)
-# - keep three months only
-# - as.POSIXct: updateFile$timestamp
-update$timestamp <- as.POSIXct(update$timestamp, tz = "UTC")
+### --- Find timespans in Advanced Search Extension schemata
+for (i in 1:dim(asSchemata)[1]) {
+  query <- paste0('"use log; select min(timestamp), max(timestamp) from ', 
+                  asSchemata$table[i],
+                  ';"')
+  outFile <- paste0('> /srv/home/goransm/RScripts/TechnicalWishes/AdvancedSearchExtension/timestamps_', 
+                    asSchemata$table[i],
+                    '.tsv')
+  sQuery <- paste(sqlLogIn, query, outFile, sep = " ")
+  system(sQuery, wait = T)
+}
+lF <- list.files()
+lF <- lF[grepl("timestamps_", lF)]
+timestamps <- vector(mode = "list", length = length(lF))
+for (i in 1:length(lF)) {
+  timestamps[[i]] <- read.delim(lF[i], sep = "\t", stringsAsFactors = F)
+}
+timestamps <- rbindlist(timestamps)
+timestamps$schema <- gsub(".tsv", "", lF)
+timestamps$schema <- gsub("timestamps_", "", timestamps$schema)
+
+### --- Inspect timespans in Advanced Search Extension schemata for NULLs
+wNULL <- apply(as.data.frame(timestamps), 1, function(x) {sum(x == "NULL")})
+wNULL <- wNULL >= 1
+timestamps <- timestamps[!wNULL]
+
+### --- order Advanced Search Extension schemata
+timestamps$rank <- order(timestamps$`max.timestamp.`)
+# - as.POSIXct: timestamps$`min.timestamp.`, timestamps$`max.timestamp.`
+timestamps$`min.timestamp.` <- as.POSIXct(timestamps$`min.timestamp.`, 
+                                          tz = "UTC", 
+                                          format = "%Y%m%d%H%M%S")
+timestamps$`max.timestamp.` <- as.POSIXct(timestamps$`max.timestamp.`, 
+                                          tz = "UTC", 
+                                          format = "%Y%m%d%H%M%S")
 # - UTC to CET
-attr(update$timestamp, "tzone") <- "Europe/Berlin"
-start3Months <- tail(update$timestamp, 1)
+attr(timestamps$`min.timestamp.`, "tzone") <- "Europe/Berlin"
+attr(timestamps$`max.timestamp.`, "tzone") <- "Europe/Berlin"
+
+### --- select Advanced Search Extension schemata to fetch
+start3Months <- max(timestamps$`max.timestamp.`)
 start3Months <- seq(as.Date(start3Months), length = 2, by = "-3 months")[2]
 start3Months <- as.POSIXct(paste0(as.character(start3Months), "00:00:00"), tz = "Europe/Berlin")
-update <- dplyr::filter(update,
-                        timestamp >= start3Months)
-write.csv(update, 'asExtensionUpdate.csv')
-file.remove('asExtensionUpdate_A.csv')
+wStart <- which(timestamps$`min.timestamp.` <= start3Months)
+if (length(wStart) == 0) {
+  timestamps$selected <- T
+} else {
+  timestamps$selected <- logical(length(wStart))
+  wFirstSelectedMin <- which(wStart)[length(which(wStart))]
+  timestamps$selected[wFirstSelectedMin:length(timestamps$selected)] <- T
+}
+timestamps <- filter(timestamps, selected == T)
+
+### --- fetch selected Advanced Search Extension schemata
+updateFile <- vector(mode = "list", length = dim(timestamps)[1])
+for (i in 1:dim(timestamps)[1]) {
+  query <- paste0('"use log; select * from ', 
+                  timestamps$schema[i],
+                  ';"')
+  outFile <- paste0('> /srv/home/goransm/RScripts/TechnicalWishes/AdvancedSearchExtension/tempDataScheme.tsv')
+  sQuery <- paste(sqlLogIn, query, outFile, sep = " ")
+  system(sQuery, wait = T)
+  updateFile[[i]] <- fread('tempDataScheme.tsv', sep = "\t")
+}
+updateFile <- rbindlist(updateFile, use.names = T, fill = T)
+
+### --- select and filter updateFile 
+updateFile <- updateFile %>% 
+  dplyr::select(id, timestamp, userAgent, wiki, starts_with('event_'))
+# - filter bots
+updateFile <- dplyr::filter(updateFile,
+                            grepl('"is_bot": false', updateFile$userAgent, fixed = T))
+# - remove userAgent
+updateFile <- dplyr::select(updateFile, -userAgent)
+# - timestamp to PosixCt and timezone = Europe/Berlin
+updateFile$timestamp <- as.POSIXct(as.character(updateFile$timestamp),
+                                   tz = "UTC",
+                                   format = "%Y%m%d%H%M%S")
+attr(updateFile$timestamp, "tzone") <- "Europe/Berlin"
+# - keep three months of data only
+start3Months <- tail(updateFile$timestamp, 1)
+start3Months <- seq(as.Date(start3Months), length = 2, by = "-3 months")[2]
+start3Months <- as.POSIXct(paste0(as.character(start3Months), "00:00:00"), tz = "Europe/Berlin")
+updateFile <- dplyr::filter(updateFile,
+                            timestamp >= start3Months)
+# - remove NAs
+updateFile[is.na(updateFile)] <- 0
+
+### --- save updateFile
+write.csv(updateFile, 'asExtensionUpdate.csv')
 
 ### -----------------------------------------------------------
 ### --- collect from wmf_raw.CirrusSearchRequestSet
@@ -107,6 +166,9 @@ file.remove('asExtensionUpdate_A.csv')
 ### --- check update
 lF <- list.files()
 if ("cirrusSearchUpdate.csv" %in% lF) {
+  
+  ######################### *** HERE
+  
   # - load cirrusSearchUpdate.csv
   cirrusSearchUpdate <- read.csv('cirrusSearchUpdate.csv',
                                  header = T,
@@ -179,7 +241,12 @@ if ("cirrusSearchUpdate.csv" %in% lF) {
   # - add update and store:
   cirrusSearchUpdate <- rbind(cirrusSearchUpdate, cirrusUpdate)
   write.csv(cirrusSearchUpdate, "cirrusSearchUpdate.csv")
-} else {
+  # - toReport:
+  print(paste0("Completed cirrusSearchUpdate.csv regular update for: ", paste(updateDate, collapse = "-")))
+  
+  ######################### *** HERE
+
+  } else {
 
   # - toReport:
   print("This is the initial intake. Running HiveQL queries and producing the cirrusSearchUpdate.csv file now.")
@@ -262,6 +329,9 @@ if ("cirrusSearchUpdate.csv" %in% lF) {
 ### --- check update
 lF <- list.files()
 if ("cirrusSearchUpdateKeywords.csv" %in% lF) {
+  
+  ######################### *** HERE
+  
   # - load cirrusSearchUpdate.csv
   cirrusSearchUpdate <- read.csv('cirrusSearchUpdateKeywords.csv',
                                  header = T,
@@ -351,6 +421,10 @@ if ("cirrusSearchUpdateKeywords.csv" %in% lF) {
   # - add update and store:
   cirrusSearchUpdate <- rbind(cirrusSearchUpdate, cirrusUpdate)
   write.csv(cirrusSearchUpdate, "cirrusSearchUpdateKeywords.csv")
+  
+  ######################### *** HERE
+  
+  
 } else {
 
   # - toReport:

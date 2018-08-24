@@ -87,7 +87,7 @@ shinyUI(
                                           Advanced Search Extension usage for (1) the last 24h, (2) during the previous week, and (3) the previous 120 
                                           days. Use the drop-down menus next to the respective chart to select the metric of interest. The source of 
                                           the present data is the <a href="https://meta.wikimedia.org/wiki/Schema:AdvancedSearchRequest" target="_blank">
-                                          AdvancedSearchRequest_17621725 schema</a>.</p>')
+                                          AdvancedSearchRequest schema</a>.</p>')
                                      )
                             ),
                             fluidRow(
@@ -191,7 +191,7 @@ shinyUI(
                                           (2) during the previous week, and (3) the previous 120 days. Use the drop-down menus next to the respective chart to 
                                           select (a) the metric and (b) the project of interest. The source of 
                                           the present data is the <a href="https://meta.wikimedia.org/wiki/Schema:AdvancedSearchRequest" target="_blank">
-                                          AdvancedSearchRequest_17621725 schema</a>.</p>')
+                                          AdvancedSearchRequest schema</a>.</p>')
                             )
                           ),
                           fluidRow(
@@ -308,11 +308,11 @@ shinyUI(
                           fluidRow(
                             column(width = 12, 
                                    h3("Previous Week"),
-                                   withSpinner(DT::dataTableOutput('keyOccurWeek', width = "50%")),
+                                   withSpinner(plotOutput('keyOccurWeekCorPlot', width = "50%")),
                                    h3("Previous Month"),
-                                   withSpinner(DT::dataTableOutput('keyOccurMonth', width = "50%")),
+                                   withSpinner(plotOutput('keyOccurMonthCorPlot', width = "50%")),
                                    h3("Previous 3 months"),
-                                   withSpinner(DT::dataTableOutput('keyOccur3Months', width = "50%"))
+                                   withSpinner(plotOutput('keyOccur3MonthsCorPlot', width = "50%"))
                                    
                             )
                           ),
@@ -350,16 +350,16 @@ shinyUI(
                           fluidRow(
                             column(width = 12, 
                                    h4("Special:Search Total Count"),
-                                   withSpinner(dygraphOutput('SpecialSearchCount', width = "100%")),
+                                   withSpinner(dygraphOutput('SpecialSearchCount', width = "90%")),
                                    hr(),
                                    h4("Advanced Search Extension Count"),
-                                   withSpinner(dygraphOutput('AdvancedSearchCount', width = "100%")),
+                                   withSpinner(dygraphOutput('AdvancedSearchCount', width = "90%")),
                                    hr(),
                                    h4("Advanced Search Extension Percent"),
-                                   withSpinner(dygraphOutput('AdvancedSearchPercent', width = "100%")),
+                                   withSpinner(dygraphOutput('AdvancedSearchPercent', width = "90%")),
                                    hr(),
                                    h4("Special:Search Count (excluding Advanced Search Extension)"),
-                                   withSpinner(dygraphOutput('SpecialSearchOnlyCount', width = "100%"))
+                                   withSpinner(dygraphOutput('SpecialSearchOnlyCount', width = "90%"))
                             )
                           ),
                           fluidRow(
@@ -399,10 +399,10 @@ shinyUI(
                                                   choices = NULL,
                                                   multiple = FALSE),
                                    h4("Special:Search"),
-                                   withSpinner(dygraphOutput('SpecialSearchKeywords', width = "100%")),
+                                   withSpinner(dygraphOutput('SpecialSearchKeywords', width = "90%")),
                                    hr(),
                                    h4("Advanced Search Extension"),
-                                   withSpinner(dygraphOutput('AdvancedSearchKeywords', width = "100%"))
+                                   withSpinner(dygraphOutput('AdvancedSearchKeywords', width = "90%"))
                             )
                           ),
                           fluidRow(
