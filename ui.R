@@ -300,7 +300,7 @@ shinyUI(
                           fluidRow(
                             column(width = 6,
                                    HTML('<p style="font-size:80%;"><b>Correlations. </b>Based on the source data from the 
-                                          <a href="https://meta.wikimedia.org/wiki/Schema:AdvancedSearchRequest" target="_blank">AdvancedSearchRequest_17621725 schema</a>, 
+                                          <a href="https://meta.wikimedia.org/wiki/Schema:AdvancedSearchRequest" target="_blank">AdvancedSearchRequest schema</a>, 
                                         this page presents the co-occurences in the usage of Advanced Search Extension specific keywords. Three tables are provided: 
                                         (1) for the previous 24h, (2) the previous week, and (3) the previous 120 days. </p>')
                             )

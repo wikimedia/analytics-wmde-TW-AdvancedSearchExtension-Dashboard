@@ -167,8 +167,6 @@ write.csv(updateFile, 'asExtensionUpdate.csv')
 lF <- list.files()
 if ("cirrusSearchUpdate.csv" %in% lF) {
   
-  ######################### *** HERE
-  
   # - load cirrusSearchUpdate.csv
   cirrusSearchUpdate <- read.csv('cirrusSearchUpdate.csv',
                                  header = T,
@@ -244,8 +242,6 @@ if ("cirrusSearchUpdate.csv" %in% lF) {
   # - toReport:
   print(paste0("Completed cirrusSearchUpdate.csv regular update for: ", paste(updateDate, collapse = "-")))
   
-  ######################### *** HERE
-
   } else {
 
   # - toReport:
@@ -329,8 +325,6 @@ if ("cirrusSearchUpdate.csv" %in% lF) {
 ### --- check update
 lF <- list.files()
 if ("cirrusSearchUpdateKeywords.csv" %in% lF) {
-  
-  ######################### *** HERE
   
   # - load cirrusSearchUpdate.csv
   cirrusSearchUpdate <- read.csv('cirrusSearchUpdateKeywords.csv',
@@ -422,9 +416,6 @@ if ("cirrusSearchUpdateKeywords.csv" %in% lF) {
   cirrusSearchUpdate <- rbind(cirrusSearchUpdate, cirrusUpdate)
   write.csv(cirrusSearchUpdate, "cirrusSearchUpdateKeywords.csv")
   
-  ######################### *** HERE
-  
-  
 } else {
 
   # - toReport:
@@ -500,13 +491,307 @@ if ("cirrusSearchUpdateKeywords.csv" %in% lF) {
 }
 
 ### ------------------------------------------------------------------
+### --- Preprocessing dashboard datasets
+### ------------------------------------------------------------------
+
+### --- Fetch data
+dataSet <- read.csv('asExtensionUpdate.csv',
+                    header = T, 
+                    row.names = 1,
+                    stringsAsFactors = F)
+### --- constant: projects
+projects <- unique(dataSet$wiki)
+### --- dataSet$timestamp as.Posixct
+dataSet$timestamp <- as.POSIXct(dataSet$timestamp,  tz = "Europe/Berlin")
+
+### --- find keyword co-occurrences
+### --- Extract last month data
+start1Month <- tail(dataSet$timestamp, 1)
+start1Month <- seq(as.Date(start1Month), length = 2, by = "-1 months")[2]
+start1Month <- as.POSIXct(paste0(as.character(start1Month), "00:00:00"), tz = "Europe/Berlin")
+keywordsMonth <- dataSet[which(dataSet$timestamp >= start1Month), ] %>% 
+  select(starts_with('event'))
+colnames(keywordsMonth) <- str_to_title(colnames(keywordsMonth))
+keyOccurMonth <- matrix(0, nrow = length(colnames(keywordsMonth)), ncol = length(colnames(keywordsMonth)))
+for (i in 1:length(colnames(keywordsMonth))) {
+  for (j in 1:length(colnames(keywordsMonth))) {
+    keyOccurMonth[i, j] <- sum(keywordsMonth[, i] + keywordsMonth[, j] == 2) 
+  } 
+}
+diag(keyOccurMonth) <- 0
+keyOccurMonth <- as.data.frame(keyOccurMonth)
+colnames(keyOccurMonth) <- colnames(keywordsMonth)
+keyOccurMonth$Keywords <- colnames(keyOccurMonth)
+
+### --- find keyword co-occurrences
+### --- Extract last week data
+start1Week <- tail(dataSet$timestamp, 1)
+start1Week <- seq(as.Date(start1Week), length = 2, by = "-6 day")[2]
+start1Week <- as.POSIXct(paste0(as.character(start1Week), "00:00:00"), tz = "Europe/Berlin")
+keywordsWeek <- dataSet[which(dataSet$timestamp >= start1Week), ] %>% 
+  select(starts_with('event'))
+colnames(keywordsWeek) <- str_to_title(colnames(keywordsWeek))
+keyOccurWeek <- matrix(0, nrow = length(colnames(keywordsWeek)), ncol = length(colnames(keywordsWeek)))
+for (i in 1:length(colnames(keywordsWeek))) {
+  for (j in 1:length(colnames(keywordsWeek))) {
+    keyOccurWeek[i, j] <- sum(keywordsWeek[, i] + keywordsWeek[, j] == 2) 
+  } 
+}
+diag(keyOccurWeek) <- 0
+keyOccurWeek <- as.data.frame(keyOccurWeek)
+colnames(keyOccurWeek) <- colnames(keywordsWeek)
+keyOccurWeek$Keywords <- colnames(keyOccurWeek)
+
+### --- find keyword co-occurrences
+### --- Extract all (3 months) data
+keywords3Months <- dataSet %>% 
+  select(starts_with('event'))
+colnames(keywords3Months) <- str_to_title(colnames(keywords3Months))
+keyOccur3Months <- matrix(0, nrow = length(colnames(keywords3Months)), ncol = length(colnames(keywords3Months)))
+for (i in 1:length(colnames(keywords3Months))) {
+  for (j in 1:length(colnames(keywords3Months))) {
+    keyOccur3Months[i, j] <- sum(keywords3Months[, i] + keywords3Months[, j] == 2) 
+  } 
+}
+diag(keyOccur3Months) <- 0
+keyOccur3Months <- as.data.frame(keyOccur3Months)
+colnames(keyOccur3Months) <- colnames(keywords3Months)
+keyOccur3Months$Keywords <- colnames(keyOccur3Months)
+
+
+### --- wrangle dataSet
+dataSet$timestamp <- as.character(dataSet$timestamp)
+dataSet <- dataSet %>% 
+  select(timestamp, wiki, starts_with('event'))
+dataSet$year <- str_sub(dataSet$timestamp, 1, 4)
+dataSet$month <- str_sub(dataSet$timestamp, 6, 7)
+dataSet$day <- str_sub(dataSet$timestamp, 9, 10)
+dataSet$hour <- str_sub(dataSet$timestamp, 12, 13)
+dataSet$minute <- str_sub(dataSet$timestamp, 15, 16)
+dataSet$second <- str_sub(dataSet$timestamp, 18, 19)
+dataSet <- dataSet %>%
+  arrange(year, month, day, hour, minute, second)
+# - lower resolution to one hour:
+dataSet$minute <- "00"
+dataSet$second <- "00"
+dates <- paste(dataSet$year, dataSet$month, dataSet$day, sep = "-")
+times <- paste(dataSet$hour, dataSet$minute, dataSet$second, sep = ":")
+dataSet$timestamp <- paste(dates, times, sep = " ")
+dataSet$timestamp <- as.POSIXlt(dataSet$timestamp, tz = "Europe/Berlin")
+
+### --- Extract 24h data
+data24 <- dataSet[which(dataSet$timestamp >= (dataSet$timestamp[dim(dataSet)[1]] - 24*60*60)), ]
+# - aggregate:
+data24$timestamp <- as.character(data24$timestamp)
+nSearches24 <- data24 %>%  
+  group_by(wiki, timestamp) %>%
+  summarise(searches = n())
+nSearches24 <- as.numeric(nSearches24$searches)
+data24 <- data24 %>%
+  group_by(wiki, timestamp) %>%
+  summarise_at(vars(starts_with('event')), sum)
+data24$searches <- nSearches24
+data24 <- arrange(data24, timestamp, wiki)
+data24$timestamp <- as.POSIXct(data24$timestamp, tz = "GMT")
+# - fill in; full timestamp sequence
+tsSeq <- seq(from = data24$timestamp[1], length.out = 25, by = "hours")
+data24Full <- expand.grid(tsSeq, unique(data24$wiki))
+colnames(data24Full) <- c('timestamp', 'wiki')
+data24Full$wiki <- as.character(data24Full$wiki)
+data24 <- left_join(data24Full, data24, 
+                    by = c('timestamp', 'wiki'))
+data24[is.na(data24)] <- 0
+colnames(data24) <- str_to_title(colnames(data24))
+rm(data24Full)
+data24Overview <- data24 %>%
+  select(-Wiki) %>% 
+  group_by(Timestamp) %>% 
+  summarise_all(sum)
+
+### --- Extract weekly data
+dataWeek <- dataSet[which(dataSet$timestamp >= (dataSet$timestamp[dim(dataSet)[1]] - 6*24*60*60)), ]
+# - lower resolution to day
+dataWeek$timestamp <- as.character(dataWeek$timestamp)
+dataWeek$timestamp <- sapply(dataWeek$timestamp, function(x) {
+  strsplit(x, split = " ", fixed = T)[[1]][1]
+})
+# - aggregate:
+nSearchesWeek <- dataWeek %>%  
+  group_by(wiki, timestamp) %>%
+  summarise(searches = n())
+nSearchesWeek <- as.numeric(nSearchesWeek$searches)
+dataWeek <- dataWeek %>%
+  group_by(wiki, timestamp) %>%
+  summarise_at(vars(starts_with('event')), sum)
+dataWeek$searches <- nSearchesWeek
+dataWeek <- arrange(dataWeek, timestamp, wiki)
+dataWeek$timestamp <- as.POSIXct(dataWeek$timestamp, tz = "Europe/Berlin")
+# - fill in; full timestamp sequence
+tsSeq <- seq(from = dataWeek$timestamp[1], length.out = 7, by = "days")
+dataWeekFull <- expand.grid(tsSeq, unique(dataWeek$wiki))
+colnames(dataWeekFull) <- c('timestamp', 'wiki')
+dataWeekFull$wiki <- as.character(dataWeekFull$wiki)
+dataWeek <- left_join(dataWeekFull, dataWeek, 
+                      by = c('timestamp', 'wiki'))
+dataWeek[is.na(dataWeek)] <- 0
+colnames(dataWeek) <- str_to_title(colnames(dataWeek))
+rm(dataWeekFull)
+dataWeekOverview <- dataWeek %>%
+  select(-Wiki) %>% 
+  group_by(Timestamp) %>% 
+  summarise_all(sum)
+
+### --- Extract monthly data
+dataMonth <- dataSet[which(dataSet$timestamp >= (dataSet$timestamp[dim(dataSet)[1]] - 3*30*24*60*60)), ]
+# - lower resolution to month
+dataMonth$timestamp <- as.character(dataMonth$timestamp)
+dataMonth$timestamp <- sapply(dataMonth$timestamp, function(x) {
+  paste(strsplit(
+    strsplit(x, split = " ", fixed = T)[[1]][1],
+    split = "-",
+    fixed = T)[[1]][1:2],
+    collapse = "-")
+})
+# - aggregate:
+nSearchesMonth <- dataMonth %>%  
+  group_by(wiki, timestamp) %>%
+  summarise(searches = n())
+nSearchesMonth <- as.numeric(nSearchesMonth$searches)
+dataMonth <- dataMonth %>%
+  group_by(wiki, timestamp) %>%
+  summarise_at(vars(starts_with('event')), sum, rm.na = T)
+dataMonth$searches <- nSearchesMonth
+dataMonth <- arrange(dataMonth, timestamp, wiki)
+dataMonth$timestamp <- paste0(dataMonth$timestamp, "-01")
+dataMonth$timestamp <- as.POSIXct(dataMonth$timestamp, tz = "Europe/Berlin")
+# - fill in; full timestamp sequence
+tsSeq <- seq(from = dataMonth$timestamp[1], length.out = 3, by = "months")
+dataMonthFull <- expand.grid(tsSeq, unique(dataMonth$wiki))
+colnames(dataMonthFull) <- c('timestamp', 'wiki')
+dataMonthFull$wiki <- as.character(dataMonthFull$wiki)
+dataMonth <- left_join(dataMonthFull, dataMonth, 
+                       by = c('timestamp', 'wiki'))
+dataMonth[is.na(dataMonth)] <- 0
+colnames(dataMonth) <- str_to_title(colnames(dataMonth))
+dataMonth$Timestamp <- sapply(dataMonth$Timestamp, function(x) {
+  gsub("-01$", "", x)
+})
+rm(dataMonthFull)
+dataMonthOverview <- dataMonth %>%
+  select(-Wiki) %>% 
+  group_by(Timestamp) %>% 
+  summarise_all(sum)
+
+### --- previous day statistics
+previousDay <- data24Overview %>% 
+  select(-Timestamp) %>% 
+  colSums()
+names(previousDay) <- str_to_title(names(previousDay))
+pDay <- as.POSIXlt(Sys.time(), tz = "Europe/Berlin")
+pDay$mday <- pDay$mday - 1
+pDay <- paste0(as.character(pDay$mday), ". ", month.name[month(pDay)])
+
+### --- previous week statistics
+previousWeek <- dataWeekOverview %>% 
+  select(-Timestamp) %>% 
+  colSums
+names(previousWeek) <- str_to_title(names(previousWeek))
+lastWeek <- paste0(dataWeek$Timestamp[1], " - ", tail(dataWeek$Timestamp, 1))
+
+### --- previous month statistics
+previousMonth <- list()
+lastMonth <- strftime(Sys.time() - 4*7*24*60*60, format = "%m")
+w <- which(strftime(dataSet$timestamp, format = "%m") == lastMonth)
+previousMonth$searches <- length(w)
+wCols <- which(grepl("^event", colnames(dataSet)))
+wSums <- colSums(dataSet[w, wCols])
+previousMonth <- append(previousMonth, wSums)
+names(previousMonth) <- str_to_title(names(previousMonth))
+
+### --- Special:Search Data
+specSearchData <- fread('cirrusSearchUpdate.csv', 
+                        header = T)
+specSearchData$V1 <- NULL
+# - fix month and day, produce date
+specSearchData$month <- sapply(specSearchData$month, function(x) {
+  if (nchar(x) == 1) {
+    paste0('0', x)
+  } else {x}
+})
+specSearchData$day <- sapply(specSearchData$day, function(x) {
+  if (nchar(x) == 1) {
+    paste0('0', x)
+  } else {x}
+})
+specSearchData$date <- paste(specSearchData$year, specSearchData$month, specSearchData$day, sep = "-")
+specSearchData[, 1:3] <- NULL
+colnames(specSearchData) <- c('SpecialSearch_Count', 'AdvancedSearch_Count', 'Date')
+specSearchData$Advanced_Percent <- specSearchData$AdvancedSearch_Count/specSearchData$SpecialSearch_Count*100
+specSearchData$SpecialSearchOnly_Count <- specSearchData$SpecialSearch_Count - specSearchData$AdvancedSearch_Count
+
+### --- Special:Search Keywords Data
+specSearchKeywordsData <- fread('cirrusSearchUpdateKeywords.csv',
+                                header = T)
+specSearchKeywordsData$V1 <- NULL
+# - fix month and day, produce date
+specSearchKeywordsData$month <- sapply(specSearchKeywordsData$month, function(x) {
+  if (nchar(x) == 1) {
+    paste0('0', x)
+  } else {x}
+})
+specSearchKeywordsData$day <- sapply(specSearchKeywordsData$day, function(x) {
+  if (nchar(x) == 1) {
+    paste0('0', x)
+  } else {x}
+})
+specSearchKeywordsData$date <- paste(specSearchKeywordsData$year, specSearchKeywordsData$month, specSearchKeywordsData$day, sep = "-")
+specSearchKeywordsData[, 1:3] <- NULL
+# - filling-in
+specSearchKeywordsData_specSearch <- specSearchKeywordsData %>% 
+  select(date, keyword, specialsearchcount) %>% 
+  spread(key = date, value = specialsearchcount, fill = 0) %>% 
+  gather(key = date, 
+         value = specialsearchcount,
+         -keyword)
+specSearchKeywordsData_advExt <- specSearchKeywordsData %>% 
+  select(date, keyword, advancedextensioncount) %>% 
+  spread(key = date, value = advancedextensioncount, fill = 0) %>% 
+  gather(key = date, 
+         value = advancedextensioncount,
+         -keyword)
+specSearchKeywordsData <- left_join(specSearchKeywordsData_specSearch, specSearchKeywordsData_advExt, 
+                                    by = c('keyword', 'date'))
+
+# - keywords to select:
+specSearchKeys <- unique(specSearchKeywordsData$keyword)
+
+# - Event_ keywords to select:
+metrics <- names(previousMonth)
+
+### --- store Rds files
+saveRDS(specSearchKeys, "specSearchKeys.Rds")
+saveRDS(metrics, "metrics.Rds")
+saveRDS(projects, "projects.Rds")
+saveRDS(data24Overview, "data24Overview.Rds")
+saveRDS(previousDay, "previousDay.Rds")
+saveRDS(pDay, "pDay.Rds")
+saveRDS(dataWeekOverview, "dataWeekOverview.Rds")
+saveRDS(previousWeek, "previousWeek.Rds")
+saveRDS(lastWeek, "lastWeek.Rds")
+saveRDS(lastMonth, "lastMonth.Rds")
+saveRDS(dataMonthOverview, "dataMonthOverview.Rds")
+saveRDS(previousMonth, "previousMonth.Rds")
+saveRDS(data24, "data24.Rds")
+saveRDS(dataWeek, "dataWeek.Rds")
+saveRDS(dataMonth, "dataMonth.Rds")
+saveRDS(keyOccurWeek, "keyOccurWeek.Rds")
+saveRDS(keyOccurMonth, "keyOccurMonth.Rds")
+saveRDS(keyOccur3Months, "keyOccur3Months.Rds")
+saveRDS(specSearchData, "specSearchData.Rds")
+saveRDS(specSearchKeywordsData, "specSearchKeywordsData.Rds")
+
+### ------------------------------------------------------------------
 ### - Copy files to public data sets:
 
-system(command = 'cp /srv/home/goransm/RScripts/TechnicalWishes/AdvancedSearchExtension/asExtensionUpdate.csv /srv/published-datasets/wmde-analytics-engineering/TechnicalWishes/AdvancedSearchExtension/',
-       wait = T)
-
-system(command = 'cp /srv/home/goransm/RScripts/TechnicalWishes/AdvancedSearchExtension/cirrusSearchUpdate.csv /srv/published-datasets/wmde-analytics-engineering/TechnicalWishes/AdvancedSearchExtension/',
-       wait = T)
-
-system(command = 'cp /srv/home/goransm/RScripts/TechnicalWishes/AdvancedSearchExtension/cirrusSearchUpdateKeywords.csv /srv/published-datasets/wmde-analytics-engineering/TechnicalWishes/AdvancedSearchExtension/',
+system(command = 'cp /srv/home/goransm/RScripts/TechnicalWishes/AdvancedSearchExtension/* /srv/published-datasets/wmde-analytics-engineering/TechnicalWishes/AdvancedSearchExtension/',
        wait = T)
