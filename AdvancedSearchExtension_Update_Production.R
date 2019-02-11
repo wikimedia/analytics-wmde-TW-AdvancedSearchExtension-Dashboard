@@ -45,8 +45,7 @@ library(jsonlite)
 library(stringr)
 library(data.table)
 library(dplyr)
-
-# - crontab: Rscript /srv/home/goransm/RScripts/TechnicalWishes/AdvancedSearchExtension/AdvancedSearchExtension_Query.R
+library(tidyr)
 
 ### -----------------------------------------------------------
 ### --- produce asExtensionUpdate.csv
